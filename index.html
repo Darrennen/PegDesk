@@ -908,10 +908,11 @@ async function fetchAllSparklines(coins) {
 // ── Render ────────────────────────────────────────────────────
 
 function renderTicker() {
-  const totalMcap = state.coins.reduce((s, c) => s + c.mcap, 0);
+  const visible = state.coins.filter(c => c.mcap >= state.mcapFilter);
+  const totalMcap = visible.reduce((s, c) => s + c.mcap, 0);
   document.getElementById('ticker-mcap').textContent = fmtMcap(totalMcap);
 
-  const items = state.coins.map(c => {
+  const items = visible.map(c => {
     const b  = band(c.price);
     const bp = bps(c.price);
     const cls = b === 'ok' ? 'up' : (b === 'crit' ? 'crit' : 'dn');
@@ -1105,6 +1106,7 @@ function renderFocus() {
 function renderAlerts() {
   const filt = state.alertFilter;
   const depegged = state.coins
+    .filter(c => c.mcap >= state.mcapFilter)
     .filter(c => {
       const b = band(c.price);
       if (filt === 'all')   return b !== 'ok';
@@ -1115,7 +1117,7 @@ function renderAlerts() {
   const el = document.getElementById('alerts-list');
   if (!depegged.length) {
     el.innerHTML = filt === 'all'
-      ? `<div class="alerts-ok"><span class="dot ok"></span>All ${state.coins.length} tracked stablecoins are within ±${T_WATCH} bps of $1.00</div>`
+      ? `<div class="alerts-ok"><span class="dot ok"></span>All ${state.coins.filter(c=>c.mcap>=state.mcapFilter).length} visible stablecoins are within ±${T_WATCH} bps of $1.00</div>`
       : `<div class="alerts-empty">No ${filt} alerts.</div>`;
     return;
   }
@@ -1136,6 +1138,7 @@ function renderAlerts() {
 
 function renderEvents() {
   const offPeg = state.coins
+    .filter(c => c.mcap >= state.mcapFilter)
     .filter(c => band(c.price) !== 'ok')
     .sort((a, b) => absBps(b.price) - absBps(a.price));
 
