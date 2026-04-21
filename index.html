@@ -1184,7 +1184,11 @@ document.querySelectorAll('#mcap-filter button').forEach(btn => {
     state.mcapFilter = Number(btn.dataset.mcap);
     document.querySelectorAll('#mcap-filter button').forEach(b => b.classList.remove('on'));
     btn.classList.add('on');
+    renderTicker();
+    renderHero();
     renderTable();
+    renderAlerts();
+    renderEvents();
   });
 });
 // Set default active to $1M+
