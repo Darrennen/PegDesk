@@ -397,6 +397,16 @@
     .foot-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-align: right; }
 
     /* ── Loading / Error ── */
+    #coin-search {
+      font-family: var(--mono); font-size: 11px; letter-spacing: .03em;
+      padding: 5px 10px; border: 1px solid var(--rule); border-radius: 2px;
+      background: var(--panel); color: var(--ink); outline: none; width: 120px;
+      transition: border-color .15s, width .2s;
+    }
+    #coin-search:focus { border-color: var(--ink-3); width: 160px; }
+    #coin-search::placeholder { color: var(--ink-4); }
+    @media (max-width: 700px) { #coin-search { width: 90px; } #coin-search:focus { width: 120px; } }
+
     .loading-row td { padding: 40px; text-align: center; color: var(--ink-3); font-family: var(--mono); font-size: 11px; }
     .err-row td { padding: 24px; text-align: center; color: var(--crit); font-family: var(--mono); font-size: 11px; }
     @keyframes shimmer { 0%{opacity:.4}50%{opacity:1}100%{opacity:.4} }
@@ -581,8 +591,9 @@
 
     <!-- Table -->
     <div class="shead">
-      <h2>Watchlist <em id="table-subtitle">— top stablecoins by market cap</em></h2>
+      <h2>Watchlist <em id="table-subtitle">— all stablecoins</em></h2>
       <div class="shead-tools">
+        <input id="coin-search" type="search" placeholder="Search…" autocomplete="off">
         <div class="seg" id="unit-seg">
           <button data-unit="bps" class="on">bps</button>
           <button data-unit="pct">%</button>
@@ -668,7 +679,7 @@ const STABLECOINS_URL  = 'https://stablecoins.llama.fi/stablecoins?includePrices
 const COINS_CHART_BASE = 'https://coins.llama.fi/chart/coingecko:';
 const REFRESH_SEC = 60;
 const SPARK_TTL   = 5 * 60 * 1000;
-const TOP_N       = 25;
+const TOP_N       = 999; // show all
 
 // bps thresholds — Peg Desk scale
 const T_WATCH = 10;   // bps
@@ -690,16 +701,17 @@ function coinInitials(sym) {
 }
 
 const state = {
-  coins:      [],
-  sparklines: {},
-  selected:   null,
-  sortKey:    'mcap',
-  unit:       'bps',
-  alertFilter:'all',
-  countdown:  REFRESH_SEC,
-  timer:      null,
-  loading:    false,
-  theme:      'light',
+  coins:       [],
+  sparklines:  {},
+  selected:    null,
+  sortKey:     'mcap',
+  unit:        'bps',
+  alertFilter: 'all',
+  searchQuery: '',
+  countdown:   REFRESH_SEC,
+  timer:       null,
+  loading:     false,
+  theme:       'light',
 };
 
 // ── Formatters ────────────────────────────────────────────────
@@ -849,7 +861,7 @@ async function fetchCoins() {
       price:     c.price,
       mcap:      c.circulating?.peggedUSD ?? 0,
     }))
-    .filter(c => c.mcap > 1_000_000)
+    .filter(c => c.mcap > 100_000) // $100k floor
     .sort((a, b) => b.mcap - a.mcap)
     .slice(0, TOP_N);
 }
@@ -948,10 +960,17 @@ function renderHero() {
 }
 
 function renderTable() {
-  const sorted = [...state.coins].sort((a, b) => {
-    if (state.sortKey === 'dev') return absBps(b.price) - absBps(a.price);
-    return b.mcap - a.mcap;
-  });
+  const q = state.searchQuery.toLowerCase();
+  const sorted = [...state.coins]
+    .filter(c => !q || c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q))
+    .sort((a, b) => {
+      if (state.sortKey === 'dev') return absBps(b.price) - absBps(a.price);
+      return b.mcap - a.mcap;
+    });
+
+  document.getElementById('table-subtitle').textContent =
+    q ? `— ${sorted.length} result${sorted.length !== 1 ? 's' : ''} for "${q}"`
+      : `— ${state.coins.length} stablecoins`;
 
   document.getElementById('table-body').innerHTML = sorted.map(c => {
     const b      = band(c.price);
@@ -1143,6 +1162,13 @@ function render() {
   const nowStr = new Date().toLocaleTimeString();
   document.getElementById('footer-updated').textContent = nowStr;
 }
+
+// ── Search ────────────────────────────────────────────────────
+
+document.getElementById('coin-search').addEventListener('input', e => {
+  state.searchQuery = e.target.value.trim();
+  renderTable();
+});
 
 // ── Sorting ───────────────────────────────────────────────────
 
