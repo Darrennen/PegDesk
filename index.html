@@ -412,6 +412,34 @@
     @keyframes shimmer { 0%{opacity:.4}50%{opacity:1}100%{opacity:.4} }
     .shimmer { animation: shimmer 1.6s ease-in-out infinite; }
 
+    /* ── Alert panel ── */
+    .alert-panel {
+      display: none;
+      background: var(--panel);
+      border-bottom: 1px solid var(--rule);
+      padding: 14px 28px;
+      gap: 20px;
+      grid-template-columns: 200px 1fr 220px;
+      align-items: start;
+      position: sticky; top: 57px; z-index: 90;
+    }
+    .alert-panel.open { display: grid; }
+    .ap-group { display: flex; flex-direction: column; gap: 6px; }
+    .ap-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); }
+    .ap-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .ap-input {
+      flex: 1; min-width: 0;
+      font-family: var(--mono); font-size: 11px;
+      padding: 5px 9px; border: 1px solid var(--rule); border-radius: 2px;
+      background: var(--bg); color: var(--ink); outline: none;
+    }
+    .ap-input:focus { border-color: var(--ink-3); }
+    .ap-status { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+    .ap-status.ok  { color: var(--ok); }
+    .ap-status.err { color: var(--crit); }
+    @media (max-width: 900px) { .alert-panel { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 600px) { .alert-panel { grid-template-columns: 1fr; padding: 12px 16px; } }
+
     /* ── Tablet ── */
     @media (max-width: 1100px) {
       .main { grid-template-columns: 1fr; }
@@ -535,10 +563,40 @@
   <div class="mast-center">A research terminal for stablecoin peg integrity.</div>
   <div class="mast-right">
     <button class="chip live" id="live-chip">Live · DeFiLlama</button>
+    <button class="chip" id="alert-btn">🔔&nbsp; Alerts</button>
     <button class="chip" id="theme-btn">◐&nbsp; Theme</button>
     <button class="chip" id="refresh-btn">↻&nbsp; Refresh</button>
   </div>
 </header>
+
+<!-- ── Alert settings panel ── -->
+<div id="alert-panel" class="alert-panel">
+  <div class="ap-group">
+    <div class="ap-label">Desktop notifications</div>
+    <div class="ap-row">
+      <button class="chip" id="notif-btn">Enable</button>
+      <span class="ap-status" id="notif-status">Off</span>
+    </div>
+  </div>
+  <div class="ap-group" style="grid-column: span 2">
+    <div class="ap-label">Slack Incoming Webhook URL &nbsp;·&nbsp; <a href="https://api.slack.com/apps" target="_blank" style="color:var(--ink-3)">Create one →</a> &nbsp; point it at <code style="font-family:var(--mono);font-size:10px;background:var(--bg-alt);padding:1px 5px;border-radius:2px">#C097VGAQ5FB</code></div>
+    <div class="ap-row">
+      <input class="ap-input" id="slack-url" type="url" placeholder="https://hooks.slack.com/services/…" spellcheck="false">
+      <button class="chip" id="slack-save-btn">Save</button>
+      <button class="chip" id="slack-test-btn">Test</button>
+    </div>
+    <span class="ap-status" id="slack-status"></span>
+  </div>
+  <div class="ap-group">
+    <div class="ap-label">Alert threshold</div>
+    <div class="seg" id="thresh-seg">
+      <button data-thresh="watch">Watch+</button>
+      <button data-thresh="warn" class="on">Warn+</button>
+      <button data-thresh="crit">Crit only</button>
+    </div>
+    <div class="ap-status" style="margin-top:4px">Cooldown: 30 min per coin</div>
+  </div>
+</div>
 
 <!-- ── Ticker ── -->
 <div class="ticker">
@@ -1177,6 +1235,143 @@ function render() {
   document.getElementById('footer-updated').textContent = nowStr;
 }
 
+// ── Alert system ─────────────────────────────────────────────
+
+const BAND_LEVEL  = { ok: 0, watch: 1, warn: 2, crit: 3 };
+const ALERT_COOL  = 30 * 60 * 1000; // 30 min per coin
+
+const alertMem = {
+  prevBands:   {},  // { id: band }
+  lastAlerted: {},  // { id: timestamp }
+  firstLoad:   true,
+  threshold:   localStorage.getItem('pegdesk.threshold') || 'warn',
+};
+
+function shouldAlert(id, newBand) {
+  const prev = alertMem.prevBands[id] || 'ok';
+  if (BAND_LEVEL[newBand] < BAND_LEVEL[alertMem.threshold]) return false;
+  if (BAND_LEVEL[newBand] <= BAND_LEVEL[prev]) return false; // not worsening
+  const last = alertMem.lastAlerted[id] || 0;
+  return (Date.now() - last) > ALERT_COOL;
+}
+
+function checkAndAlert() {
+  const visible = state.coins.filter(c => c.mcap >= state.mcapFilter);
+  const toAlert = [];
+
+  for (const coin of visible) {
+    const id  = coin.gecko_id ?? coin.id;
+    const nb  = band(coin.price);
+    if (!alertMem.firstLoad && shouldAlert(id, nb)) {
+      toAlert.push(coin);
+      alertMem.lastAlerted[id] = Date.now();
+    }
+    alertMem.prevBands[id] = nb;
+  }
+  alertMem.firstLoad = false;
+
+  for (const coin of toAlert) {
+    const b    = band(coin.price);
+    const dev  = fmtDev(coin.price, 'bps');
+    const title = `${b === 'crit' ? '🚨' : '⚠️'} ${coin.symbol} Depeg — ${fmtPrice(coin.price)}`;
+    const body  = `${dev} from peg · ${bandLabel(b)} · Mcap ${fmtMcap(coin.mcap)}`;
+    fireDesktopNotif(title, body);
+    fireSlackAlert(coin, b, dev);
+  }
+}
+
+function fireDesktopNotif(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try { new Notification(title, { body, silent: false }); } catch (_) {}
+}
+
+async function fireSlackAlert(coin, b, dev) {
+  const url = localStorage.getItem('pegdesk.slackWebhook');
+  if (!url) return;
+  const emoji = b === 'crit' ? '🚨' : b === 'warn' ? '⚠️' : '👀';
+  const payload = {
+    text: `${emoji} *${coin.symbol}* depeg — ${fmtPrice(coin.price)} (${dev})`,
+    blocks: [{
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `${emoji} *${coin.symbol}* traded at *${fmtPrice(coin.price)}* — *${dev}* from peg\n*Status:* ${bandLabel(b)}  ·  *Mcap:* ${fmtMcap(coin.mcap)}  ·  *Mechanism:* ${mechLabel(coin.mechanism)}\n<https://darrennen.github.io/PegDesk|View on Peg Desk →>`
+      }
+    }]
+  };
+  try {
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'payload=' + encodeURIComponent(JSON.stringify(payload)),
+    });
+  } catch (e) { console.warn('Slack alert failed', e); }
+}
+
+// ── Alert panel bindings ──────────────────────────────────────
+
+document.getElementById('alert-btn').addEventListener('click', () => {
+  document.getElementById('alert-panel').classList.toggle('open');
+});
+
+// Desktop notifications
+function syncNotifStatus() {
+  const el  = document.getElementById('notif-status');
+  const btn = document.getElementById('notif-btn');
+  if (!('Notification' in window)) { el.textContent = 'Not supported'; return; }
+  if (Notification.permission === 'granted')  { el.textContent = '✓ Enabled'; el.className = 'ap-status ok'; btn.textContent = 'Enabled'; }
+  if (Notification.permission === 'denied')   { el.textContent = '✗ Blocked in browser settings'; el.className = 'ap-status err'; }
+  if (Notification.permission === 'default')  { el.textContent = 'Off'; el.className = 'ap-status'; btn.textContent = 'Enable'; }
+}
+document.getElementById('notif-btn').addEventListener('click', async () => {
+  if (Notification.permission !== 'granted') {
+    await Notification.requestPermission();
+  }
+  syncNotifStatus();
+});
+syncNotifStatus();
+
+// Slack webhook
+const slackUrlEl    = document.getElementById('slack-url');
+const slackStatusEl = document.getElementById('slack-status');
+slackUrlEl.value = localStorage.getItem('pegdesk.slackWebhook') || '';
+
+document.getElementById('slack-save-btn').addEventListener('click', () => {
+  const url = slackUrlEl.value.trim();
+  if (url) { localStorage.setItem('pegdesk.slackWebhook', url); slackStatusEl.textContent = '✓ Saved'; slackStatusEl.className = 'ap-status ok'; }
+  else     { localStorage.removeItem('pegdesk.slackWebhook'); slackStatusEl.textContent = 'Cleared'; slackStatusEl.className = 'ap-status'; }
+});
+
+document.getElementById('slack-test-btn').addEventListener('click', async () => {
+  const url = slackUrlEl.value.trim() || localStorage.getItem('pegdesk.slackWebhook');
+  if (!url) { slackStatusEl.textContent = 'Enter a webhook URL first'; slackStatusEl.className = 'ap-status err'; return; }
+  slackStatusEl.textContent = 'Sending…'; slackStatusEl.className = 'ap-status';
+  const payload = { text: '✅ *Peg Desk* test alert — notifications are working.' };
+  try {
+    await fetch(url, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'payload=' + encodeURIComponent(JSON.stringify(payload)),
+    });
+    slackStatusEl.textContent = '✓ Sent (check Slack)'; slackStatusEl.className = 'ap-status ok';
+  } catch (e) {
+    slackStatusEl.textContent = '✗ Failed: ' + e.message; slackStatusEl.className = 'ap-status err';
+  }
+});
+
+// Threshold
+document.querySelectorAll('#thresh-seg button').forEach(btn => {
+  if (btn.dataset.thresh === alertMem.threshold) btn.classList.add('on');
+  else btn.classList.remove('on');
+  btn.addEventListener('click', () => {
+    alertMem.threshold = btn.dataset.thresh;
+    localStorage.setItem('pegdesk.threshold', alertMem.threshold);
+    document.querySelectorAll('#thresh-seg button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+  });
+});
+
 // ── Mcap filter ───────────────────────────────────────────────
 
 document.querySelectorAll('#mcap-filter button').forEach(btn => {
@@ -1263,6 +1458,7 @@ async function doRefresh() {
       state.selected = state.coins[0].gecko_id ?? state.coins[0].id;
     }
     render();
+    checkAndAlert();
     fetchAllSparklines(state.coins);
   } catch (e) {
     console.error(e);
