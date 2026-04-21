@@ -456,6 +456,8 @@
 
       /* Section heads */
       .shead { padding: 14px 16px 8px; flex-wrap: wrap; gap: 8px; }
+      .shead-tools { flex-wrap: wrap; gap: 4px; }
+      #mcap-filter button { padding: 5px 6px; font-size: 9px; }
       .shead h2 { font-size: 17px; }
       .shead h2 em { font-size: 11px; }
       .seg button { padding: 5px 8px; font-size: 9.5px; }
@@ -594,6 +596,13 @@
       <h2>Watchlist <em id="table-subtitle">— all stablecoins</em></h2>
       <div class="shead-tools">
         <input id="coin-search" type="search" placeholder="Search…" autocomplete="off">
+        <div class="seg" id="mcap-filter">
+          <button data-mcap="0" class="on">All</button>
+          <button data-mcap="1000000">$1M+</button>
+          <button data-mcap="10000000">$10M+</button>
+          <button data-mcap="100000000">$100M+</button>
+          <button data-mcap="1000000000">$1B+</button>
+        </div>
         <div class="seg" id="unit-seg">
           <button data-unit="bps" class="on">bps</button>
           <button data-unit="pct">%</button>
@@ -708,6 +717,7 @@ const state = {
   unit:        'bps',
   alertFilter: 'all',
   searchQuery: '',
+  mcapFilter:  1_000_000, // default $1M+
   countdown:   REFRESH_SEC,
   timer:       null,
   loading:     false,
@@ -962,6 +972,7 @@ function renderHero() {
 function renderTable() {
   const q = state.searchQuery.toLowerCase();
   const sorted = [...state.coins]
+    .filter(c => c.mcap >= state.mcapFilter)
     .filter(c => !q || c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q))
     .sort((a, b) => {
       if (state.sortKey === 'dev') return absBps(b.price) - absBps(a.price);
@@ -1162,6 +1173,20 @@ function render() {
   const nowStr = new Date().toLocaleTimeString();
   document.getElementById('footer-updated').textContent = nowStr;
 }
+
+// ── Mcap filter ───────────────────────────────────────────────
+
+document.querySelectorAll('#mcap-filter button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.mcapFilter = Number(btn.dataset.mcap);
+    document.querySelectorAll('#mcap-filter button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    renderTable();
+  });
+});
+// Set default active to $1M+
+document.querySelector('#mcap-filter button[data-mcap="1000000"]')?.classList.add('on');
+document.querySelector('#mcap-filter button[data-mcap="0"]')?.classList.remove('on');
 
 // ── Search ────────────────────────────────────────────────────
 
