@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1440">
+  <title>Peg Desk — Stablecoin Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --serif: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+      --sans:  'IBM Plex Sans', -apple-system, system-ui, sans-serif;
+      --mono:  'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+      --bg:       #f4f1ea;
+      --bg-alt:   #ebe6db;
+      --panel:    #fbf9f3;
+      --panel-2:  #f8f5ec;
+      --ink:      #1a1814;
+      --ink-2:    #3a362d;
+      --ink-3:    #6b6458;
+      --ink-4:    #9a9384;
+      --rule:     #d9d2c1;
+      --rule-2:   #e6dfcd;
+      --hair:     rgba(26,24,20,.08);
+
+      --ok:       #4c6b3f;
+      --ok-bg:    #e4ebd8;
+      --watch:    #a67c00;
+      --watch-bg: #f2e8c9;
+      --warn:     #b8561e;
+      --warn-bg:  #f4d9c4;
+      --crit:     #9a2020;
+      --crit-bg:  #f1cfc9;
+
+      --sheet:    #fffdf7;
+      --shadow-1: 0 1px 0 rgba(26,24,20,.04), 0 0 0 1px var(--hair);
+      --shadow-2: 0 4px 20px -8px rgba(26,24,20,.15), 0 0 0 1px var(--hair);
+    }
+
+    [data-theme="dark"] {
+      --bg:       #0e0d0b;
+      --bg-alt:   #16140f;
+      --panel:    #1a1814;
+      --panel-2:  #201d17;
+      --ink:      #f2ede0;
+      --ink-2:    #d6cfbc;
+      --ink-3:    #8e8774;
+      --ink-4:    #5f5a4d;
+      --rule:     #2e2a21;
+      --rule-2:   #25221b;
+      --hair:     rgba(242,237,224,.08);
+      --ok:       #9fc57a;
+      --ok-bg:    #1e2818;
+      --watch:    #d6a845;
+      --watch-bg: #2a2314;
+      --warn:     #e89458;
+      --warn-bg:  #2d1d12;
+      --crit:     #e87373;
+      --crit-bg:  #2d1616;
+      --sheet:    #17150f;
+      --shadow-1: 0 0 0 1px var(--hair);
+      --shadow-2: 0 8px 30px -12px rgba(0,0,0,.6), 0 0 0 1px var(--hair);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: var(--sans);
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -.005em;
+    }
+    button { font-family: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+
+    .mono  { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+    .serif { font-family: var(--serif); font-weight: 400; }
+    .micro { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+
+    /* ── Masthead ── */
+    .mast {
+      padding: 16px 28px 13px;
+      border-bottom: 1px solid var(--rule);
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: end;
+      gap: 20px;
+      background: var(--bg);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .mast-left  { display: flex; align-items: baseline; gap: 16px; }
+    .mast-right { display: flex; justify-content: flex-end; gap: 6px; align-items: center; }
+    .wordmark {
+      font-family: var(--serif);
+      font-size: 30px;
+      line-height: 1;
+      letter-spacing: -.02em;
+    }
+    .wordmark em { font-style: italic; color: var(--ink-3); }
+    .edition {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+      border-left: 1px solid var(--rule);
+      padding-left: 14px;
+    }
+    .edition b { color: var(--ink); font-weight: 500; }
+    .mast-center {
+      text-align: center;
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 14px;
+      color: var(--ink-3);
+      padding-bottom: 3px;
+    }
+    .chip {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: .04em;
+      padding: 5px 10px;
+      border: 1px solid var(--rule);
+      border-radius: 2px;
+      color: var(--ink-2);
+      background: var(--panel);
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      text-transform: uppercase;
+      transition: all .15s;
+    }
+    .chip:hover { border-color: var(--ink-3); color: var(--ink); }
+    .chip.live::before {
+      content: '';
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 0 3px var(--ok-bg);
+      animation: pulse 2s infinite;
+    }
+    .chip.warn-chip::before { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg); }
+    .chip.crit-chip::before { background: var(--crit); box-shadow: 0 0 0 3px var(--crit-bg); animation: pulse 1.4s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.35} }
+
+    /* ── Ticker ── */
+    .ticker {
+      border-bottom: 1px solid var(--rule);
+      background: var(--bg-alt);
+      padding: 9px 28px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 20px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      overflow: hidden;
+    }
+    .ticker-label {
+      color: var(--ink-3);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      font-size: 10px;
+      border-right: 1px solid var(--rule);
+      padding-right: 18px;
+      white-space: nowrap;
+    }
+    .ticker-scroll {
+      display: flex;
+      gap: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      -webkit-mask: linear-gradient(90deg,transparent 0,#000 3%,#000 97%,transparent 100%);
+      mask: linear-gradient(90deg,transparent 0,#000 3%,#000 97%,transparent 100%);
+    }
+    .ticker-inner {
+      display: inline-flex;
+      gap: 28px;
+      animation: ticker-scroll 40s linear infinite;
+    }
+    .ticker-inner:hover { animation-play-state: paused; }
+    @keyframes ticker-scroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    .tick { display: inline-flex; gap: 8px; align-items: baseline; }
+    .tick .sym { color: var(--ink); font-weight: 500; }
+    .tick .px  { color: var(--ink-2); }
+    .tick .d   { font-size: 10.5px; }
+    .d.up   { color: var(--ok); }
+    .d.dn   { color: var(--warn); }
+    .d.crit { color: var(--crit); }
+    .ticker-meta { color: var(--ink-3); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; white-space: nowrap; }
+
+    /* ── Main grid ── */
+    .main {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+      min-height: calc(100vh - 110px);
+    }
+    .col-left  { border-right: 1px solid var(--rule); display: flex; flex-direction: column; }
+    .col-right { display: flex; flex-direction: column; }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 22px 28px 20px;
+      border-bottom: 1px solid var(--rule);
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 28px;
+      align-items: stretch;
+      position: relative;
+    }
+    .hero::before {
+      content: ''; position: absolute;
+      top: 22px; bottom: 20px; left: 50%;
+      width: 1px; background: var(--rule);
+    }
+    .hero-eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .hero-title {
+      font-family: var(--serif);
+      font-size: 42px;
+      line-height: 1.05;
+      letter-spacing: -.025em;
+      margin: 2px 0 14px;
+      font-weight: 400;
+    }
+    .hero-title em { font-style: italic; color: var(--warn); }
+    .hero-sub {
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 15px;
+      line-height: 1.4;
+      color: var(--ink-2);
+    }
+    .hero-sub b { font-style: normal; font-family: var(--sans); font-weight: 500; color: var(--ink); }
+    .hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; align-content: center; }
+    .hstat .lab { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 3px; }
+    .hstat .val { font-family: var(--serif); font-size: 30px; line-height: 1; letter-spacing: -.02em; }
+    .hstat .val .unit { font-size: 13px; color: var(--ink-3); font-style: italic; margin-left: 3px; }
+    .hstat .sub { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); margin-top: 3px; }
+    .sub .up { color: var(--ok); }
+    .sub .dn { color: var(--warn); }
+
+    /* ── Status dots ── */
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .dot.ok    { background: var(--ok);    box-shadow: 0 0 0 3px var(--ok-bg); }
+    .dot.watch { background: var(--watch); box-shadow: 0 0 0 3px var(--watch-bg); }
+    .dot.warn  { background: var(--warn);  box-shadow: 0 0 0 3px var(--warn-bg); }
+    .dot.crit  { background: var(--crit);  box-shadow: 0 0 0 3px var(--crit-bg); animation: pulse 1.5s infinite; }
+
+    /* ── Section heads ── */
+    .shead {
+      display: flex; align-items: baseline; justify-content: space-between;
+      padding: 16px 28px 10px; gap: 14px;
+    }
+    .shead h2 { font-family: var(--serif); font-weight: 400; font-size: 20px; margin: 0; letter-spacing: -.015em; }
+    .shead h2 em { font-style: italic; color: var(--ink-3); font-size: 13px; margin-left: 7px; }
+    .shead-tools { display: flex; gap: 4px; align-items: center; }
+
+    /* ── Segment controls ── */
+    .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 2px; overflow: hidden; background: var(--panel); }
+    .seg button {
+      font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em;
+      padding: 5px 10px; color: var(--ink-3); text-transform: uppercase;
+      border-right: 1px solid var(--rule); transition: all .12s;
+    }
+    .seg button:last-child { border-right: 0; }
+    .seg button:hover { color: var(--ink); background: var(--panel-2); }
+    .seg button.on { background: var(--ink); color: var(--bg); }
+
+    /* ── Coin table ── */
+    .table-wrap { padding: 0 28px 8px; overflow-x: auto; }
+    table.coins { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    table.coins thead th {
+      text-align: left; font-family: var(--mono); font-size: 10px; font-weight: 500;
+      letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3);
+      padding: 9px 10px 9px 0; border-bottom: 1px solid var(--rule); white-space: nowrap;
+      cursor: pointer; user-select: none;
+    }
+    table.coins thead th.num,
+    table.coins tbody td.num { text-align: right; }
+    table.coins thead th.no-sort { cursor: default; }
+    table.coins thead th:hover:not(.no-sort) { color: var(--ink); }
+    table.coins thead th.sort-asc::after  { content: ' ▲'; font-size: .55em; }
+    table.coins thead th.sort-desc::after { content: ' ▼'; font-size: .55em; }
+    table.coins tbody tr { border-bottom: 1px solid var(--rule-2); cursor: pointer; transition: background .1s; }
+    table.coins tbody tr:hover { background: var(--panel-2); }
+    table.coins tbody tr.selected { background: var(--panel); }
+    table.coins tbody tr.selected td:first-child { box-shadow: inset 2px 0 0 var(--ink); }
+    table.coins tbody td { padding: 11px 10px 11px 0; font-size: 13px; color: var(--ink-2); vertical-align: middle; }
+
+    .coin-cell { display: flex; align-items: center; gap: 11px; padding-left: 0 !important; }
+    .coin-badge {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: grid; place-items: center;
+      font-family: var(--mono); font-weight: 600; font-size: 10px;
+      letter-spacing: 0; flex-shrink: 0; color: #fff;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.2);
+    }
+    .coin-name { display: flex; flex-direction: column; line-height: 1.15; }
+    .coin-name .sym  { color: var(--ink); font-weight: 500; font-size: 13.5px; }
+    .coin-name .full { color: var(--ink-3); font-size: 11px; font-family: var(--mono); }
+
+    .status-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
+      text-transform: uppercase; padding: 3px 7px; border-radius: 2px; white-space: nowrap;
+    }
+    .status-tag.ok    { color: var(--ok);    background: var(--ok-bg); }
+    .status-tag.watch { color: var(--watch); background: var(--watch-bg); }
+    .status-tag.warn  { color: var(--warn);  background: var(--warn-bg); }
+    .status-tag.crit  { color: var(--crit);  background: var(--crit-bg); }
+
+    .price-cell { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; gap: 2px; }
+    .price-cell .px  { font-family: var(--mono); font-size: 13px; color: var(--ink); font-weight: 500; }
+    .price-cell .dev { font-family: var(--mono); font-size: 10.5px; }
+
+    .dev.ok    { color: var(--ok); }
+    .dev.watch { color: var(--watch); }
+    .dev.warn  { color: var(--warn); }
+    .dev.crit  { color: var(--crit); }
+
+    .spark { width: 100px; height: 26px; display: block; }
+
+    .mech-tag {
+      display: inline-block; padding: 2px 6px; border-radius: 2px;
+      font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+      text-transform: uppercase; white-space: nowrap;
+      color: var(--ink-3); background: var(--panel-2); border: 1px solid var(--rule);
+    }
+
+    /* ── Event log ── */
+    .events { padding: 0 28px 20px; flex: 1; }
+    .event { display: grid; grid-template-columns: 60px 1fr 90px; gap: 12px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--rule-2); }
+    .event .when { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+    .event .what { font-size: 13px; color: var(--ink-2); }
+    .event .what .sym { font-weight: 500; color: var(--ink); margin-right: 6px; }
+    .event .dur  { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); text-align: right; }
+    .event-empty { font-family: var(--mono); font-size: 11px; color: var(--ink-3); text-align: center; padding: 20px 0; }
+
+    /* ── Focus panel ── */
+    .focus { padding: 18px 28px 20px; border-bottom: 1px solid var(--rule); }
+    .focus-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); margin-bottom: 14px; }
+    .focus-title { display: flex; gap: 14px; align-items: center; }
+    .focus-title .coin-badge { width: 42px; height: 42px; font-size: 13px; }
+    .focus-title h1 { font-family: var(--serif); font-weight: 400; font-size: 28px; line-height: 1; letter-spacing: -.02em; margin: 0; }
+    .focus-title h1 em { font-style: italic; color: var(--ink-3); font-size: 15px; margin-left: 6px; }
+    .focus-title .desc { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); margin-top: 4px; letter-spacing: .04em; text-transform: uppercase; }
+    .focus-price { text-align: right; }
+    .focus-price .big { font-family: var(--serif); font-size: 38px; line-height: 1; letter-spacing: -.02em; }
+    .focus-price .big em { font-style: italic; color: var(--warn); }
+    .focus-price .sub { font-family: var(--mono); font-size: 11px; margin-top: 4px; display: flex; gap: 10px; justify-content: flex-end; }
+
+    .chart-wrap { position: relative; background: var(--sheet); border: 1px solid var(--rule); padding: 12px 12px 8px; }
+    .chart-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; }
+    .chart-svg { width: 100%; height: 180px; display: block; }
+
+    .kpis { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 14px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+    .kpi { padding: 11px 14px; border-right: 1px solid var(--rule); }
+    .kpi:last-child { border-right: 0; }
+    .kpi .lab { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px; }
+    .kpi .val { font-family: var(--serif); font-size: 20px; letter-spacing: -.015em; line-height: 1; }
+    .kpi .val .u { font-size: 11px; color: var(--ink-3); font-style: italic; margin-left: 3px; }
+    .kpi .foot { font-family: var(--mono); font-size: 10px; color: var(--ink-3); margin-top: 3px; }
+
+    /* ── Alerts panel ── */
+    .alerts { padding: 18px 28px 20px; }
+    .alerts-list { display: flex; flex-direction: column; }
+    .alert { display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--rule-2); }
+    .alert .stamp { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+    .alert .body { display: flex; flex-direction: column; gap: 2px; }
+    .alert .headline { font-size: 13px; color: var(--ink); }
+    .alert .sym { font-weight: 500; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); margin-top: 1px; }
+    .sev {
+      font-family: var(--mono); font-size: 9.5px; letter-spacing: .07em;
+      padding: 2px 6px; border-radius: 2px; text-transform: uppercase; white-space: nowrap;
+    }
+    .sev.ok    { color: var(--ok);    background: var(--ok-bg); }
+    .sev.watch { color: var(--watch); background: var(--watch-bg); }
+    .sev.warn  { color: var(--warn);  background: var(--warn-bg); }
+    .sev.crit  { color: var(--crit);  background: var(--crit-bg); }
+    .alerts-empty { font-family: var(--mono); font-size: 11px; color: var(--ink-3); padding: 18px 0; }
+    .alerts-ok { color: var(--ok); display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; padding: 16px 0; border: 1px solid var(--ok-bg); background: var(--ok-bg); padding: 14px; border-radius: 2px; }
+
+    /* ── Footer ── */
+    .foot {
+      border-top: 1px solid var(--rule); padding: 12px 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 20px; background: var(--bg-alt);
+    }
+    .legend { display: flex; gap: 20px; flex-wrap: wrap; }
+    .legend span { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); display: flex; align-items: center; gap: 7px; }
+    .foot-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-3); text-align: right; }
+
+    /* ── Loading / Error ── */
+    .loading-row td { padding: 40px; text-align: center; color: var(--ink-3); font-family: var(--mono); font-size: 11px; }
+    .err-row td { padding: 24px; text-align: center; color: var(--crit); font-family: var(--mono); font-size: 11px; }
+    @keyframes shimmer { 0%{opacity:.4}50%{opacity:1}100%{opacity:.4} }
+    .shimmer { animation: shimmer 1.6s ease-in-out infinite; }
+
+    @media (max-width: 1100px) {
+      .main { grid-template-columns: 1fr; }
+      .col-left { border-right: none; border-bottom: 1px solid var(--rule); }
+      .hero { grid-template-columns: 1fr; }
+      .hero::before { display: none; }
+    }
+    @media (max-width: 700px) {
+      .mast { grid-template-columns: 1fr auto; }
+      .mast-center { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Masthead ── -->
+<header class="mast">
+  <div class="mast-left">
+    <div class="wordmark">Peg<em>·</em>Desk</div>
+    <div class="edition">
+      <b id="ed-date">—</b> &nbsp;·&nbsp; <b id="ed-time">—</b> UTC
+      &nbsp;·&nbsp; next refresh <b id="countdown">60</b>s
+    </div>
+  </div>
+  <div class="mast-center">A research terminal for stablecoin peg integrity.</div>
+  <div class="mast-right">
+    <button class="chip live" id="live-chip">Live · DeFiLlama</button>
+    <button class="chip" id="theme-btn">◐&nbsp; Theme</button>
+    <button class="chip" id="refresh-btn">↻&nbsp; Refresh</button>
+  </div>
+</header>
+
+<!-- ── Ticker ── -->
+<div class="ticker">
+  <div class="ticker-label">Peg Tape</div>
+  <div class="ticker-scroll">
+    <div class="ticker-inner" id="ticker-inner">
+      <span class="tick shimmer"><span class="sym">Loading…</span></span>
+    </div>
+  </div>
+  <div class="ticker-meta">Σ Mcap &middot; <span id="ticker-mcap">—</span></div>
+</div>
+
+<!-- ── Main ── -->
+<main class="main">
+
+  <!-- Left column -->
+  <section class="col-left">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-block">
+        <div class="hero-eyebrow">
+          <span class="dot ok" id="hero-dot"></span>
+          <span class="micro" id="hero-eyebrow">Loading…</span>
+        </div>
+        <h1 class="hero-title" id="hero-title">Stablecoin<br><em>peg status.</em></h1>
+        <p class="hero-sub" id="hero-sub">&nbsp;</p>
+      </div>
+      <div class="hero-stats">
+        <div class="hstat">
+          <div class="lab">Median deviation</div>
+          <div class="val"><span id="hs-median">—</span><span class="unit">bps</span></div>
+          <div class="sub" id="hs-median-sub">&nbsp;</div>
+        </div>
+        <div class="hstat">
+          <div class="lab">Max deviation</div>
+          <div class="val"><span id="hs-max">—</span><span class="unit">bps</span></div>
+          <div class="sub" id="hs-max-sub">&nbsp;</div>
+        </div>
+        <div class="hstat">
+          <div class="lab">Coins in warn</div>
+          <div class="val"><span id="hs-warn">—</span><span class="unit" id="hs-warn-denom">/—</span></div>
+          <div class="sub" id="hs-warn-sub">&nbsp;</div>
+        </div>
+        <div class="hstat">
+          <div class="lab">Total market cap</div>
+          <div class="val" id="hs-mcap">—</div>
+          <div class="sub" id="hs-mcap-sub">&nbsp;</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="shead">
+      <h2>Watchlist <em id="table-subtitle">— top stablecoins by market cap</em></h2>
+      <div class="shead-tools">
+        <div class="seg" id="unit-seg">
+          <button data-unit="bps" class="on">bps</button>
+          <button data-unit="pct">%</button>
+        </div>
+        <div class="seg" id="sort-seg">
+          <button data-sort="mcap" class="on">Mcap</button>
+          <button data-sort="dev">Dev</button>
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="coins" id="coins-table">
+        <thead>
+          <tr>
+            <th>Coin</th>
+            <th>Status</th>
+            <th class="num">Price / Dev</th>
+            <th class="no-sort">14d</th>
+            <th>Mechanism</th>
+            <th class="num">Mcap</th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr class="loading-row"><td colspan="6" class="shimmer">Fetching stablecoin data…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Event log -->
+    <div class="shead" style="margin-top:8px">
+      <h2>Depeg ledger <em>— currently depegged</em></h2>
+    </div>
+    <div class="events">
+      <div id="events-list"><div class="event-empty shimmer">Loading…</div></div>
+    </div>
+
+  </section>
+
+  <!-- Right column -->
+  <section class="col-right">
+
+    <!-- Focus panel -->
+    <div class="focus" id="focus">
+      <div style="padding:40px 0; text-align:center; color:var(--ink-3); font-family:var(--mono); font-size:11px;" class="shimmer">Select a coin to inspect →</div>
+    </div>
+
+    <!-- Alerts -->
+    <div class="alerts">
+      <div class="shead" style="padding:0 0 10px">
+        <h2>Alerts <em>— active depegs</em></h2>
+        <div class="shead-tools">
+          <div class="seg" id="alert-filter">
+            <button class="on" data-f="all">All</button>
+            <button data-f="crit">Crit</button>
+            <button data-f="warn">Warn</button>
+            <button data-f="watch">Watch</button>
+          </div>
+        </div>
+      </div>
+      <div class="alerts-list" id="alerts-list">
+        <div class="alerts-empty shimmer">Loading…</div>
+      </div>
+    </div>
+
+  </section>
+</main>
+
+<!-- ── Footer ── -->
+<footer class="foot">
+  <div class="legend">
+    <span><span class="dot ok"></span>≤ 10 bps · In band</span>
+    <span><span class="dot watch"></span>10 – 25 bps · Watch</span>
+    <span><span class="dot warn"></span>25 – 100 bps · Warn</span>
+    <span><span class="dot crit"></span>&gt; 100 bps · Critical</span>
+  </div>
+  <div class="foot-meta">
+    Data: DeFiLlama · <span id="footer-updated">—</span>
+  </div>
+</footer>
+
+<script>
+const STABLECOINS_URL  = 'https://stablecoins.llama.fi/stablecoins?includePrices=true';
+const COINS_CHART_BASE = 'https://coins.llama.fi/chart/coingecko:';
+const REFRESH_SEC = 60;
+const SPARK_TTL   = 5 * 60 * 1000;
+const TOP_N       = 25;
+
+// bps thresholds — Peg Desk scale
+const T_WATCH = 10;   // bps
+const T_WARN  = 25;
+const T_CRIT  = 100;
+
+const COIN_COLORS = {
+  USDT:'#26A17B', USDC:'#2775CA', DAI:'#F4B731', FDUSD:'#1E4DD8',
+  USDe:'#111111', PYUSD:'#0070BA', FRAX:'#000000', crvUSD:'#8D0021',
+  LUSD:'#2ECC71', TUSD:'#1E2D6F', USDP:'#00A3FF', USDD:'#15ACA0',
+  MIM:'#9945FF', sUSD:'#00D1FF', GUSD:'#00DCFA', USDN:'#5952FF',
+};
+function coinColor(sym) {
+  return COIN_COLORS[sym] || ('#' + (parseInt(sym.split('').reduce((a,c)=>a+c.charCodeAt(0),0)*2654435761)>>>0).toString(16).slice(0,6).padStart(6,'0'));
+}
+function coinInitials(sym) {
+  if (sym.startsWith('crv')) return 'cv';
+  return sym.slice(0, 2);
+}
+
+const state = {
+  coins:      [],
+  sparklines: {},
+  selected:   null,
+  sortKey:    'mcap',
+  unit:       'bps',
+  alertFilter:'all',
+  countdown:  REFRESH_SEC,
+  timer:      null,
+  loading:    false,
+  theme:      'light',
+};
+
+// ── Formatters ────────────────────────────────────────────────
+
+function bps(price)   { return Math.round((price - 1) * 10000); }
+function absBps(price){ return Math.abs(bps(price)); }
+
+function fmtDev(price, unit) {
+  const b = bps(price);
+  if (unit === 'pct') return (b >= 0 ? '+' : '') + (b / 100).toFixed(3) + '%';
+  return (b >= 0 ? '+' : '') + b + ' bps';
+}
+function fmtPrice(p) { return p == null ? '—' : '$' + p.toFixed(4); }
+function fmtMcap(v) {
+  if (!v) return '—';
+  if (v >= 1e12) return '$' + (v / 1e12).toFixed(2) + 'T';
+  if (v >= 1e9)  return '$' + (v / 1e9).toFixed(2)  + 'B';
+  if (v >= 1e6)  return '$' + (v / 1e6).toFixed(1)  + 'M';
+  return '$' + v.toLocaleString();
+}
+function fmtBpsAbs(price) {
+  const b = absBps(price);
+  return (b >= 0 ? '+' : '') + Math.round(b);
+}
+
+function band(price) {
+  const a = absBps(price);
+  if (a > T_CRIT)  return 'crit';
+  if (a > T_WARN)  return 'warn';
+  if (a > T_WATCH) return 'watch';
+  return 'ok';
+}
+function bandLabel(b) {
+  return { ok: 'In band', watch: 'Watch', warn: 'Warn', crit: 'Critical' }[b];
+}
+function bandAccent(b) {
+  return { ok: 'var(--ok)', watch: 'var(--watch)', warn: 'var(--warn)', crit: 'var(--crit)' }[b];
+}
+
+function mechLabel(raw) {
+  if (!raw) return 'Unknown';
+  const r = raw.toLowerCase();
+  if (r.includes('fiat'))                          return 'Fiat';
+  if (r.includes('crypto') || r.includes('over')) return 'Crypto';
+  if (r.includes('algo') || r.includes('seign'))  return 'Algo';
+  return 'Other';
+}
+
+// ── SVG charts ────────────────────────────────────────────────
+
+function sparklineSVG(series, { w=100, h=26, accent='currentColor', fill=null } = {}) {
+  if (!series || series.length < 2) {
+    return `<svg class="spark" viewBox="0 0 ${w} ${h}"><line x1="0" x2="${w}" y1="${h/2}" y2="${h/2}" stroke="currentColor" stroke-opacity=".12" stroke-dasharray="2 2"/></svg>`;
+  }
+  const min = Math.min(...series), max = Math.max(...series);
+  const rng = Math.max(max - min, 1e-6);
+  const pad = 1;
+  const pts = series.map((v, i) => {
+    const x = pad + (i / (series.length - 1)) * (w - pad * 2);
+    const y = pad + (1 - (v - min) / rng) * (h - pad * 2);
+    return [x, y];
+  });
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const yBase = pad + (1 - (1 - min) / rng) * (h - pad * 2);
+  let out = `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">`;
+  if (yBase >= 0 && yBase <= h) {
+    out += `<line x1="0" x2="${w}" y1="${yBase.toFixed(1)}" y2="${yBase.toFixed(1)}" stroke="currentColor" stroke-opacity=".12" stroke-dasharray="2 2"/>`;
+  }
+  if (fill) {
+    out += `<path d="${d} L${w-pad} ${h-pad} L${pad} ${h-pad} Z" fill="${fill}" fill-opacity=".18"/>`;
+  }
+  out += `<path d="${d}" fill="none" stroke="${accent}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>`;
+  out += `</svg>`;
+  return out;
+}
+
+let chartIdCounter = 0;
+function bigChartSVG(series, { accent = 'var(--warn)' } = {}) {
+  const uid = 'cg' + (chartIdCounter++);
+  const w = 580, h = 180;
+  const padL = 46, padR = 8, padT = 14, padB = 20;
+  const iw = w - padL - padR, ih = h - padT - padB;
+
+  if (!series || series.length < 2) {
+    return `<svg class="chart-svg" viewBox="0 0 ${w} ${h}"><text x="${w/2}" y="${h/2}" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="currentColor" fill-opacity=".35">No data</text></svg>`;
+  }
+  const min = Math.min(...series), max = Math.max(...series);
+  const rng = Math.max(max - min, 1e-6);
+  const tx = i => padL + (i / (series.length - 1)) * iw;
+  const ty = v => padT + (1 - (v - min) / rng) * ih;
+
+  let grid = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = min + rng * i / 4;
+    const y = ty(v);
+    grid += `<line x1="${padL}" x2="${w-padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="currentColor" stroke-opacity=".06"/>`;
+    grid += `<text x="${padL-6}" y="${(y+3).toFixed(1)}" text-anchor="end" font-family="IBM Plex Mono" font-size="9" fill="currentColor" fill-opacity=".45">${v.toFixed(4)}</text>`;
+  }
+  if (1 >= min && 1 <= max) {
+    const y1 = ty(1);
+    grid += `<line x1="${padL}" x2="${w-padR}" y1="${y1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="currentColor" stroke-opacity=".25" stroke-dasharray="3 3"/>`;
+    grid += `<text x="${w-padR-2}" y="${(y1-5).toFixed(1)}" text-anchor="end" font-family="IBM Plex Mono" font-size="9" fill="currentColor" fill-opacity=".5">$1.0000</text>`;
+  }
+  const xlabs = ['−14d','−10d','−7d','−3d','now'].map((L, i) => {
+    const x = padL + (i / 4) * iw;
+    return `<text x="${x.toFixed(1)}" y="${h-5}" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="currentColor" fill-opacity=".45">${L}</text>`;
+  }).join('');
+
+  const pts = series.map((v, i) => [tx(i), ty(v)]);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const y0 = padT + ih;
+  const lp = pts[pts.length - 1];
+
+  // Use a unique gradient ID per render
+  const hexAccent = { 'var(--ok)':'#4c6b3f','var(--watch)':'#a67c00','var(--warn)':'#b8561e','var(--crit)':'#9a2020' }[accent] || '#b8561e';
+
+  return `<svg class="chart-svg" viewBox="0 0 ${w} ${h}">
+    <defs>
+      <linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${hexAccent}" stop-opacity=".22"/>
+        <stop offset="100%" stop-color="${hexAccent}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    ${grid}
+    <path d="${d} L${(w-padR).toFixed(1)} ${y0} L${padL} ${y0} Z" fill="url(#${uid})"/>
+    <path d="${d}" fill="none" stroke="${accent}" stroke-width="1.6" stroke-linejoin="round"/>
+    <circle cx="${lp[0].toFixed(1)}" cy="${lp[1].toFixed(1)}" r="3.5" fill="${accent}"/>
+    <circle cx="${lp[0].toFixed(1)}" cy="${lp[1].toFixed(1)}" r="6" fill="none" stroke="${accent}" stroke-opacity=".35"/>
+    ${xlabs}
+  </svg>`;
+}
+
+// ── API ───────────────────────────────────────────────────────
+
+async function fetchCoins() {
+  const res  = await fetch(STABLECOINS_URL);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.peggedAssets || [])
+    .filter(c => c.pegType === 'peggedUSD' && c.price != null)
+    .map(c => ({
+      id:        c.id,
+      symbol:    c.symbol,
+      name:      c.name,
+      gecko_id:  c.gecko_id || null,
+      mechanism: c.pegMechanism || null,
+      price:     c.price,
+      mcap:      c.circulating?.peggedUSD ?? 0,
+    }))
+    .filter(c => c.mcap > 1_000_000)
+    .sort((a, b) => b.mcap - a.mcap)
+    .slice(0, TOP_N);
+}
+
+async function fetchSparkline(gecko_id) {
+  const start = Math.floor((Date.now() - 14 * 86400_000) / 1000);
+  const res   = await fetch(`${COINS_CHART_BASE}${gecko_id}?start=${start}&span=14&period=1d`);
+  if (!res.ok) return null;
+  const data  = await res.json();
+  return data.coins?.[`coingecko:${gecko_id}`]?.prices?.map(p => p.price) ?? null;
+}
+
+async function fetchAllSparklines(coins) {
+  const now     = Date.now();
+  const toFetch = coins.filter(c => {
+    if (!c.gecko_id) return false;
+    const cached = state.sparklines[c.gecko_id];
+    return !cached || (now - cached.fetched) > SPARK_TTL;
+  });
+  for (let i = 0; i < toFetch.length; i += 5) {
+    await Promise.all(toFetch.slice(i, i + 5).map(async c => {
+      try {
+        const prices = await fetchSparkline(c.gecko_id);
+        if (prices?.length) {
+          state.sparklines[c.gecko_id] = { prices, fetched: now };
+          patchSparkCell(c.gecko_id ?? c.id);
+          if (state.selected === (c.gecko_id ?? c.id)) renderFocus();
+        }
+      } catch (_) {}
+    }));
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────
+
+function renderTicker() {
+  const totalMcap = state.coins.reduce((s, c) => s + c.mcap, 0);
+  document.getElementById('ticker-mcap').textContent = fmtMcap(totalMcap);
+
+  const items = state.coins.map(c => {
+    const b  = band(c.price);
+    const bp = bps(c.price);
+    const cls = b === 'ok' ? 'up' : (b === 'crit' ? 'crit' : 'dn');
+    const arrow = bp >= 0 ? '▲' : '▼';
+    return `<span class="tick">
+      <span class="sym">${c.symbol}</span>
+      <span class="px">${fmtPrice(c.price)}</span>
+      <span class="d ${cls}">${arrow} ${bp >= 0 ? '+' : ''}${bp} bps</span>
+    </span>`;
+  }).join('');
+  // Duplicate for seamless loop
+  document.getElementById('ticker-inner').innerHTML = items + items;
+}
+
+function renderHero() {
+  const coins   = state.coins;
+  const bpsVals = coins.map(c => absBps(c.price));
+  const median  = bpsVals.slice().sort((a,b)=>a-b)[Math.floor(bpsVals.length/2)] ?? 0;
+  const maxBps  = Math.max(...bpsVals);
+  const worst   = coins.find(c => absBps(c.price) === maxBps) || coins[0];
+  const warns   = coins.filter(c => absBps(c.price) > T_WARN);
+  const crits   = coins.filter(c => absBps(c.price) > T_CRIT);
+  const totalMcap = coins.reduce((s, c) => s + c.mcap, 0);
+
+  const overallBand = crits.length > 0 ? 'crit' : warns.length > 0 ? 'warn' : median > T_WATCH ? 'watch' : 'ok';
+
+  document.getElementById('hero-dot').className = `dot ${overallBand}`;
+  document.getElementById('hero-eyebrow').textContent =
+    overallBand === 'ok' ? `All ${coins.length} coins within ±${T_WATCH} bps` :
+    overallBand === 'watch' ? `Elevated · ${warns.length} coin${warns.length !== 1 ? 's' : ''} in watch` :
+    overallBand === 'warn'  ? `Warn · ${warns.length} coin${warns.length !== 1 ? 's' : ''} depegged >25 bps` :
+    `Critical · ${crits.length} coin${crits.length !== 1 ? 's' : ''} depegged >100 bps`;
+
+  const titleEl = document.getElementById('hero-title');
+  const subEl   = document.getElementById('hero-sub');
+  if (overallBand === 'ok') {
+    titleEl.innerHTML = `Market peg<br><em>intact.</em>`;
+    subEl.innerHTML   = `All <b>${coins.length}</b> tracked stablecoins are within <b>±${T_WATCH} bps</b> of $1.00. Median deviation <b>${median} bps</b>.`;
+  } else if (worst) {
+    const abv = absBps(worst.price);
+    titleEl.innerHTML = `Market peg<br><em>${overallBand === 'crit' ? 'breaking.' : 'slipping.'}</em>`;
+    subEl.innerHTML   = `<b>${worst.symbol}</b> trades at <b>${fmtPrice(worst.price)}</b> (${bps(worst.price) >= 0 ? '+' : ''}${bps(worst.price)} bps), ${abv > 25 ? 'its widest deviation among tracked coins' : 'watch for further slippage'}. ${warns.length > 1 ? warns.length + ' coins are off peg.' : ''}`;
+  }
+
+  document.getElementById('hs-median').textContent = median;
+  document.getElementById('hs-max').textContent    = maxBps;
+  document.getElementById('hs-max-sub').innerHTML  = worst ? `<span class="dn">${worst.symbol}</span>` : '';
+  document.getElementById('hs-warn').textContent       = warns.length;
+  document.getElementById('hs-warn-denom').textContent = '/' + coins.length;
+  document.getElementById('hs-warn-sub').textContent   = crits.length > 0 ? crits.length + ' critical' : warns.length > 0 ? warns.map(c=>c.symbol).slice(0,2).join(', ') : 'all in band';
+  document.getElementById('hs-mcap').textContent  = fmtMcap(totalMcap);
+
+  // Update live chip
+  const chip = document.getElementById('live-chip');
+  chip.className = 'chip live' + (overallBand === 'crit' ? ' crit-chip' : overallBand === 'warn' ? ' warn-chip' : '');
+}
+
+function renderTable() {
+  const sorted = [...state.coins].sort((a, b) => {
+    if (state.sortKey === 'dev') return absBps(b.price) - absBps(a.price);
+    return b.mcap - a.mcap;
+  });
+
+  document.getElementById('table-body').innerHTML = sorted.map(c => {
+    const b      = band(c.price);
+    const accent = bandAccent(b);
+    const spark  = state.sparklines[c.gecko_id];
+    const svg    = sparklineSVG(spark?.prices, { w: 100, h: 26, accent, fill: accent });
+    const selCls = state.selected === (c.gecko_id ?? c.id) ? ' selected' : '';
+    const key    = c.gecko_id ?? c.id;
+    return `<tr class="${selCls}" data-key="${key}">
+      <td class="coin-cell">
+        <span class="coin-badge" style="background:${coinColor(c.symbol)}">${coinInitials(c.symbol)}</span>
+        <span class="coin-name">
+          <span class="sym">${c.symbol}</span>
+          <span class="full">${c.name}</span>
+        </span>
+      </td>
+      <td><span class="status-tag ${b}"><span class="dot ${b}"></span>${bandLabel(b)}</span></td>
+      <td class="num">
+        <div class="price-cell">
+          <span class="px">${fmtPrice(c.price)}</span>
+          <span class="dev ${b}">${fmtDev(c.price, state.unit)}</span>
+        </div>
+      </td>
+      <td id="spark-${key}">${svg}</td>
+      <td><span class="mech-tag">${mechLabel(c.mechanism)}</span></td>
+      <td class="num mono">${fmtMcap(c.mcap)}</td>
+    </tr>`;
+  }).join('');
+
+  document.querySelectorAll('#coins-table tbody tr').forEach(tr => {
+    tr.addEventListener('click', () => {
+      state.selected = tr.dataset.key;
+      renderTable();
+      renderFocus();
+    });
+  });
+}
+
+function patchSparkCell(key) {
+  const el   = document.getElementById(`spark-${key}`);
+  if (!el) return;
+  const coin = state.coins.find(c => (c.gecko_id ?? c.id) === key);
+  if (!coin) return;
+  const b      = band(coin.price);
+  const accent = bandAccent(b);
+  const spark  = state.sparklines[coin.gecko_id];
+  if (spark) el.innerHTML = sparklineSVG(spark.prices, { w: 100, h: 26, accent, fill: accent });
+}
+
+function renderFocus() {
+  const key  = state.selected;
+  const coin = key ? state.coins.find(c => (c.gecko_id ?? c.id) === key) : null;
+  const el   = document.getElementById('focus');
+  if (!coin) {
+    el.innerHTML = `<div style="padding:40px 0;text-align:center;color:var(--ink-3);font-family:var(--mono);font-size:11px;">Click a coin to inspect →</div>`;
+    return;
+  }
+
+  const b      = band(coin.price);
+  const accent = bandAccent(b);
+  const spark  = state.sparklines[coin.gecko_id];
+  const priceBelow = coin.price < 1;
+  const bigPrice = priceBelow
+    ? `<em>${fmtPrice(coin.price)}</em>`
+    : fmtPrice(coin.price);
+
+  // KPIs from sparkline
+  let devNow = bps(coin.price), devPeak = 0, oobTime = '—';
+  if (spark?.prices?.length) {
+    const bpsArr = spark.prices.map(p => Math.abs(bps(p)));
+    devPeak = Math.max(...bpsArr);
+    const oobCount = spark.prices.filter(p => absBps(p) > T_WATCH).length;
+    const oobMins  = Math.round(oobCount * (14 * 24 * 60 / spark.prices.length));
+    oobTime = oobMins >= 60 ? (oobMins / 60).toFixed(1) + 'h' : oobMins + 'm';
+  }
+
+  el.innerHTML = `
+    <div class="focus-head">
+      <div class="focus-title">
+        <span class="coin-badge" style="background:${coinColor(coin.symbol)};width:42px;height:42px;font-size:13px">${coinInitials(coin.symbol)}</span>
+        <div>
+          <h1>${coin.symbol} <em>${coin.name}</em></h1>
+          <div class="desc">Status · <span style="color:${accent}">${bandLabel(b)}</span> · ${mechLabel(coin.mechanism)}-backed</div>
+        </div>
+      </div>
+      <div class="focus-price">
+        <div class="big">${bigPrice}</div>
+        <div class="sub">
+          <span class="dev ${b}">${fmtDev(coin.price, state.unit)}</span>
+          <span style="color:var(--ink-3)">mcap ${fmtMcap(coin.mcap)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-wrap">
+      <div class="chart-toolbar">
+        <span>Price vs peg · 14-day</span>
+      </div>
+      ${bigChartSVG(spark?.prices, { accent })}
+    </div>
+
+    <div class="kpis">
+      <div class="kpi">
+        <div class="lab">Deviation · now</div>
+        <div class="val">${(devNow >= 0 ? '+' : '') + devNow}<span class="u">bps</span></div>
+        <div class="foot">peak ${devPeak} bps · 14d</div>
+      </div>
+      <div class="kpi">
+        <div class="lab">Time out of band</div>
+        <div class="val">${oobTime}</div>
+        <div class="foot">&gt;${T_WATCH} bps · last 14d</div>
+      </div>
+      <div class="kpi">
+        <div class="lab">Market cap</div>
+        <div class="val" style="font-size:16px">${fmtMcap(coin.mcap)}</div>
+        <div class="foot">${mechLabel(coin.mechanism).toLowerCase()}-backed</div>
+      </div>
+    </div>`;
+}
+
+function renderAlerts() {
+  const filt = state.alertFilter;
+  const depegged = state.coins
+    .filter(c => {
+      const b = band(c.price);
+      if (filt === 'all')   return b !== 'ok';
+      return b === filt;
+    })
+    .sort((a, b) => absBps(b.price) - absBps(a.price));
+
+  const el = document.getElementById('alerts-list');
+  if (!depegged.length) {
+    el.innerHTML = filt === 'all'
+      ? `<div class="alerts-ok"><span class="dot ok"></span>All ${state.coins.length} tracked stablecoins are within ±${T_WATCH} bps of $1.00</div>`
+      : `<div class="alerts-empty">No ${filt} alerts.</div>`;
+    return;
+  }
+  el.innerHTML = depegged.map(c => {
+    const b   = band(c.price);
+    const now = new Date();
+    const t   = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    return `<div class="alert">
+      <div class="stamp">${t}</div>
+      <div class="body">
+        <span class="headline">${c.symbol} at ${fmtPrice(c.price)} · ${(bps(c.price)>=0?'+':'') + bps(c.price)} bps from peg</span>
+        <span class="sym">${c.name} · ${fmtMcap(c.mcap)}</span>
+      </div>
+      <span class="sev ${b}">${bandLabel(b)}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderEvents() {
+  const offPeg = state.coins
+    .filter(c => band(c.price) !== 'ok')
+    .sort((a, b) => absBps(b.price) - absBps(a.price));
+
+  const el = document.getElementById('events-list');
+  if (!offPeg.length) {
+    el.innerHTML = `<div class="event-empty">✓ No active depegs</div>`;
+    return;
+  }
+  el.innerHTML = offPeg.map(c => {
+    const b = band(c.price);
+    return `<div class="event">
+      <div class="when">now</div>
+      <div class="what"><span class="sym">${c.symbol}</span><b>${fmtPrice(c.price)} · ${(bps(c.price)>=0?'+':'')+bps(c.price)} bps</b> <span class="sev ${b}" style="font-size:9px;padding:2px 5px;margin-left:6px">${b}</span></div>
+      <div class="dur">${fmtMcap(c.mcap)}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateClock() {
+  const now = new Date();
+  const d = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const t = now.toISOString().slice(11, 16);
+  document.getElementById('ed-date').textContent = d;
+  document.getElementById('ed-time').textContent = t;
+}
+
+function render() {
+  updateClock();
+  renderTicker();
+  renderHero();
+  renderTable();
+  renderAlerts();
+  renderEvents();
+  if (state.selected) renderFocus();
+  const nowStr = new Date().toLocaleTimeString();
+  document.getElementById('footer-updated').textContent = nowStr;
+}
+
+// ── Sorting ───────────────────────────────────────────────────
+
+document.querySelectorAll('#sort-seg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.sortKey = btn.dataset.sort;
+    document.querySelectorAll('#sort-seg button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    renderTable();
+  });
+});
+
+document.querySelectorAll('#unit-seg button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.unit = btn.dataset.unit;
+    document.querySelectorAll('#unit-seg button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    renderTable();
+    if (state.selected) renderFocus();
+  });
+});
+
+document.querySelectorAll('#alert-filter button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.alertFilter = btn.dataset.f;
+    document.querySelectorAll('#alert-filter button').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    renderAlerts();
+  });
+});
+
+// ── Theme toggle ──────────────────────────────────────────────
+
+document.getElementById('theme-btn').addEventListener('click', () => {
+  state.theme = state.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', state.theme);
+});
+
+// ── Countdown ─────────────────────────────────────────────────
+
+function startCountdown() {
+  state.countdown = REFRESH_SEC;
+  clearInterval(state.timer);
+  state.timer = setInterval(() => {
+    state.countdown--;
+    document.getElementById('countdown').textContent = state.countdown;
+    if (state.countdown <= 0) doRefresh();
+  }, 1000);
+}
+
+async function doRefresh() {
+  if (state.loading) return;
+  state.loading = true;
+  const btn = document.getElementById('refresh-btn');
+  btn.textContent = '↻ Loading…';
+  startCountdown();
+  try {
+    state.coins = await fetchCoins();
+    if (!state.selected && state.coins.length) {
+      state.selected = state.coins[0].gecko_id ?? state.coins[0].id;
+    }
+    render();
+    fetchAllSparklines(state.coins);
+  } catch (e) {
+    console.error(e);
+    document.getElementById('table-body').innerHTML =
+      `<tr class="err-row"><td colspan="6">Failed to load: ${e.message}</td></tr>`;
+  } finally {
+    state.loading = false;
+    btn.textContent = '↻ Refresh';
+  }
+}
+
+document.getElementById('refresh-btn').addEventListener('click', doRefresh);
+
+setInterval(updateClock, 30_000);
+
+// ── Init ──────────────────────────────────────────────────────
+
+(async () => {
+  try {
+    state.coins = await fetchCoins();
+    if (state.coins.length) {
+      state.selected = state.coins[0].gecko_id ?? state.coins[0].id;
+    }
+    render();
+    startCountdown();
+    fetchAllSparklines(state.coins);
+  } catch (e) {
+    document.getElementById('table-body').innerHTML =
+      `<tr class="err-row"><td colspan="6">Failed to load: ${e.message}</td></tr>`;
+    document.getElementById('alerts-list').innerHTML =
+      `<div class="alerts-empty" style="color:var(--crit)">Failed to load data</div>`;
+  }
+})();
+</script>
+</body>
+</html>
