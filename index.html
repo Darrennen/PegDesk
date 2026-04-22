@@ -547,6 +547,37 @@
       .hero-title { font-size: 26px; }
       .edition { display: none; }
     }
+
+    /* ── Yield Stablecoins ── */
+    .yield-section { border-top: 1px solid var(--rule); flex-shrink: 0; }
+    table.yield-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    table.yield-table thead th {
+      text-align: left; font-family: var(--mono); font-size: 10px; font-weight: 500;
+      letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3);
+      padding: 8px 10px 8px 0; border-bottom: 1px solid var(--rule); white-space: nowrap;
+    }
+    table.yield-table thead th.num,
+    table.yield-table tbody td.num { text-align: right; }
+    table.yield-table tbody tr { border-bottom: 1px solid var(--rule-2); transition: background .1s; }
+    table.yield-table tbody tr:hover { background: var(--panel-2); }
+    table.yield-table tbody td { padding: 10px 10px 10px 0; font-size: 13px; color: var(--ink-2); vertical-align: middle; }
+    .yield-chg.up     { color: var(--ok); }
+    .yield-chg.dn     { color: var(--warn); }
+    .yield-chg.big-dn { color: var(--crit); font-weight: 600; }
+    .yield-badge {
+      font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase;
+      padding: 2px 5px; border-radius: 2px; background: var(--crit-bg); color: var(--crit);
+      margin-left: 5px; vertical-align: middle;
+    }
+    .yield-note {
+      font-family: var(--mono); font-size: 10px; color: var(--ink-4);
+      padding: 6px 0 10px; letter-spacing: .03em;
+    }
+    @media (max-width: 680px) {
+      .yield-section .table-wrap { padding: 0 16px 6px; }
+      table.yield-table thead th:nth-child(4),
+      table.yield-table tbody td:nth-child(4) { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -695,6 +726,29 @@
     </div>
     <div class="events">
       <div id="events-list"><div class="event-empty shimmer">Loading…</div></div>
+    </div>
+
+    <!-- Yield Stablecoins -->
+    <div class="yield-section">
+      <div class="shead">
+        <h2>Yield Stablecoins <em>— price &amp; 24h change</em></h2>
+      </div>
+      <div class="table-wrap">
+        <table class="yield-table">
+          <thead>
+            <tr>
+              <th>Token</th>
+              <th class="num">Price</th>
+              <th class="num">24h</th>
+              <th>7d</th>
+            </tr>
+          </thead>
+          <tbody id="yield-body">
+            <tr><td colspan="4" class="shimmer" style="padding:10px 0">Loading…</td></tr>
+          </tbody>
+        </table>
+        <div class="yield-note">These tokens accrue yield and trade above $1 by design — alerts fire on 24h drops &gt; 0.5%</div>
+      </div>
     </div>
 
   </section>
@@ -1230,9 +1284,146 @@ function render() {
   renderTable();
   renderAlerts();
   renderEvents();
+  renderYieldSection();
   if (state.selected) renderFocus();
   const nowStr = new Date().toLocaleTimeString();
   document.getElementById('footer-updated').textContent = nowStr;
+}
+
+// ── Yield Stablecoins ────────────────────────────────────────
+
+const YIELD_COINS = [
+  { id: 'ethena-staked-usde',  symbol: 'sUSDe',   name: 'Staked USDe',    color: '#111111' },
+  { id: 'savings-dai',          symbol: 'sDAI',    name: 'Savings DAI',    color: '#F4B731' },
+  { id: 'ondo-us-dollar-yield', symbol: 'USDY',    name: 'Ondo USD Yield', color: '#0070BA' },
+  { id: 'savings-usds',         symbol: 'sUSDS',   name: 'Savings USDS',   color: '#1E4DD8' },
+  { id: 'usual-usd-plus-plus',  symbol: 'USD0++',  name: 'Usual USD0++',   color: '#8B5CF6' },
+  { id: 'savings-crvusd',       symbol: 'scrvUSD', name: 'Savings crvUSD', color: '#8D0021' },
+  { id: 'usdm',                 symbol: 'USDM',    name: 'Mountain USDM',  color: '#00A3FF' },
+];
+
+const yieldState = { coins: [], sparklines: {} };
+const yieldAlertMem = { lastAlerted: {}, firstLoad: true };
+const YIELD_DROP_THRESHOLD = -0.5; // % — fire alert if 24h change below this
+const YIELD_COOL = 30 * 60 * 1000;
+
+async function fetchYieldCoins() {
+  const ids = YIELD_COINS.map(c => `coingecko:${c.id}`).join(',');
+  const [priceRes, pctRes] = await Promise.all([
+    fetch(`https://coins.llama.fi/prices/current/${ids}`),
+    fetch(`https://coins.llama.fi/percentage/${ids}?period=24h`),
+  ]);
+  const priceData = priceRes.ok ? await priceRes.json() : {};
+  const pctData   = pctRes.ok  ? await pctRes.json()   : {};
+  const prices    = priceData.coins || {};
+  const changes   = pctData.coins   || {};
+  return YIELD_COINS.map(c => {
+    const key   = `coingecko:${c.id}`;
+    const entry = prices[key] || {};
+    return { ...c, price: entry.price ?? null, change24h: changes[key] ?? null };
+  });
+}
+
+async function fetchYieldSparklines() {
+  const now   = Date.now();
+  const start = Math.floor((now - 7 * 86400_000) / 1000);
+  for (let i = 0; i < YIELD_COINS.length; i += 3) {
+    await Promise.all(YIELD_COINS.slice(i, i + 3).map(async c => {
+      const cached = yieldState.sparklines[c.id];
+      if (cached && (now - cached.fetched) < SPARK_TTL) return;
+      try {
+        const res  = await fetch(`${COINS_CHART_BASE}${c.id}?start=${start}&span=7&period=1d`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const pts  = data.coins?.[`coingecko:${c.id}`]?.prices?.map(p => p.price) ?? null;
+        if (pts?.length) {
+          yieldState.sparklines[c.id] = { prices: pts, fetched: now };
+          patchYieldSparkCell(c.id);
+        }
+      } catch (_) {}
+    }));
+  }
+}
+
+function patchYieldSparkCell(id) {
+  const el   = document.getElementById(`yspark-${id}`);
+  if (!el) return;
+  const coin = yieldState.coins.find(c => c.id === id);
+  if (!coin) return;
+  const spark = yieldState.sparklines[id];
+  if (!spark) return;
+  const chg    = coin.change24h ?? 0;
+  const accent = chg < YIELD_DROP_THRESHOLD ? 'var(--crit)' : chg < 0 ? 'var(--warn)' : 'var(--ok)';
+  el.innerHTML = sparklineSVG(spark.prices, { w: 80, h: 24, accent, fill: accent });
+}
+
+function renderYieldSection() {
+  const el = document.getElementById('yield-body');
+  if (!yieldState.coins.length) return;
+  el.innerHTML = yieldState.coins.map(c => {
+    const price = c.price != null ? '$' + c.price.toFixed(4) : '—';
+    let chgTxt = '—', chgCls = 'up';
+    if (c.change24h != null) {
+      const sign = c.change24h >= 0 ? '+' : '';
+      chgTxt = sign + c.change24h.toFixed(3) + '%';
+      chgCls = c.change24h < YIELD_DROP_THRESHOLD ? 'big-dn' : c.change24h < 0 ? 'dn' : 'up';
+    }
+    const badge  = (c.change24h != null && c.change24h < YIELD_DROP_THRESHOLD)
+      ? `<span class="yield-badge">drop</span>` : '';
+    const spark  = yieldState.sparklines[c.id];
+    const accent = c.change24h != null && c.change24h < YIELD_DROP_THRESHOLD ? 'var(--crit)'
+                 : c.change24h != null && c.change24h < 0 ? 'var(--warn)' : 'var(--ok)';
+    const svg    = spark
+      ? sparklineSVG(spark.prices, { w: 80, h: 24, accent, fill: accent })
+      : `<svg class="spark" viewBox="0 0 80 24"><line x1="0" x2="80" y1="12" y2="12" stroke="currentColor" stroke-opacity=".12" stroke-dasharray="2 2"/></svg>`;
+    return `<tr>
+      <td class="coin-cell">
+        <span class="coin-badge" style="background:${c.color};width:24px;height:24px;font-size:9px">${coinInitials(c.symbol)}</span>
+        <span class="coin-name">
+          <span class="sym">${c.symbol}${badge}</span>
+          <span class="full">${c.name}</span>
+        </span>
+      </td>
+      <td class="num mono">${price}</td>
+      <td class="num mono"><span class="yield-chg ${chgCls}">${chgTxt}</span></td>
+      <td id="yspark-${c.id}">${svg}</td>
+    </tr>`;
+  }).join('');
+}
+
+function checkYieldAlerts() {
+  if (yieldAlertMem.firstLoad) { yieldAlertMem.firstLoad = false; return; }
+  for (const c of yieldState.coins) {
+    if (c.change24h == null || c.change24h >= YIELD_DROP_THRESHOLD) continue;
+    const last = yieldAlertMem.lastAlerted[c.id] || 0;
+    if ((Date.now() - last) < YIELD_COOL) continue;
+    yieldAlertMem.lastAlerted[c.id] = Date.now();
+    const sign  = c.change24h >= 0 ? '+' : '';
+    const title = `📉 ${c.symbol} yield drop — ${sign}${c.change24h.toFixed(3)}% in 24h`;
+    const body  = c.price != null ? `Current price: $${c.price.toFixed(4)} — sharp 24h decline` : 'Sharp 24h decline detected';
+    fireDesktopNotif(title, body);
+    fireYieldSlackAlert(c);
+  }
+}
+
+async function fireYieldSlackAlert(c) {
+  const url = localStorage.getItem('pegdesk.slackWebhook');
+  if (!url) return;
+  const sign    = c.change24h >= 0 ? '+' : '';
+  const priceStr = c.price != null ? `\n*Current price:* $${c.price.toFixed(4)}` : '';
+  const payload = {
+    text: `📉 *${c.symbol}* yield drop — ${sign}${c.change24h.toFixed(3)}% in 24h`,
+    blocks: [{ type: 'section', text: { type: 'mrkdwn',
+      text: `📉 *${c.symbol}* (${c.name}) dropped *${sign}${c.change24h.toFixed(3)}%* in the last 24h${priceStr}\n<https://darrennen.github.io/PegDesk|View on Peg Desk →>`
+    }}]
+  };
+  try {
+    await fetch(url, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'payload=' + encodeURIComponent(JSON.stringify(payload)),
+    });
+  } catch (e) { console.warn('Yield Slack alert failed', e); }
 }
 
 // ── Alert system ─────────────────────────────────────────────
@@ -1453,13 +1644,17 @@ async function doRefresh() {
   btn.textContent = '↻ Loading…';
   startCountdown();
   try {
-    state.coins = await fetchCoins();
+    const [coins, yCoins] = await Promise.all([fetchCoins(), fetchYieldCoins()]);
+    state.coins = coins;
+    yieldState.coins = yCoins;
     if (!state.selected && state.coins.length) {
       state.selected = state.coins[0].gecko_id ?? state.coins[0].id;
     }
     render();
     checkAndAlert();
+    checkYieldAlerts();
     fetchAllSparklines(state.coins);
+    fetchYieldSparklines();
   } catch (e) {
     console.error(e);
     document.getElementById('table-body').innerHTML =
@@ -1478,13 +1673,16 @@ setInterval(updateClock, 30_000);
 
 (async () => {
   try {
-    state.coins = await fetchCoins();
+    const [coins, yCoins] = await Promise.all([fetchCoins(), fetchYieldCoins()]);
+    state.coins      = coins;
+    yieldState.coins = yCoins;
     if (state.coins.length) {
       state.selected = state.coins[0].gecko_id ?? state.coins[0].id;
     }
     render();
     startCountdown();
     fetchAllSparklines(state.coins);
+    fetchYieldSparklines();
   } catch (e) {
     document.getElementById('table-body').innerHTML =
       `<tr class="err-row"><td colspan="6">Failed to load: ${e.message}</td></tr>`;
